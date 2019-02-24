@@ -1,9 +1,6 @@
-all: urftobmp urftotiff
+all: urftobmp
 
-urftobmp:urftobmp.c
-
-urftotiff:urftotiff.c
-	$(CC) urftotiff.c -ltiff -o urftotiff
+urftobmp: urftobmp.c
 
 clean:
-	rm -f urftobmp urftotiff
+	rm -f urftobmp
