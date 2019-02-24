@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -71,6 +72,16 @@ typedef struct {
   uint32_t nimpcolors;
 } __attribute__((__packed__)) BITMAPINFOHEADER;
 
+#define COLTABLE_POS 54
+typedef struct {
+    struct {
+	uint8_t b;
+	uint8_t g;
+	uint8_t r;
+	uint8_t a;
+    } rgba32[256];
+} __attribute__((__packed__)) COLTABLE;
+
 typedef enum {
   BI_RGB = 0,
   BI_RLE8,
@@ -101,11 +112,12 @@ int create_bmp_file(unsigned width, unsigned height, struct bmp_info * info, int
     unsigned line_size;
     unsigned data_size;
     unsigned raw_size;
-    unsigned raw_pos = DIB_POS + sizeof(BITMAPINFOHEADER);
+    unsigned raw_pos = COLTABLE_POS + sizeof(COLTABLE);
     uint8_t * data;
     struct bmpfile_magic * magic = NULL;
     struct bmpfile_header * header = NULL;
     BITMAPINFOHEADER * dib = NULL;
+    COLTABLE * coltable = NULL;
 
     switch(bpp)
     {
@@ -115,6 +127,10 @@ int create_bmp_file(unsigned width, unsigned height, struct bmp_info * info, int
             line_size = width*pixel_bytes;
             line_size = (line_size/4 + (line_size%4?1:0))*4;
             break;
+	case 8:
+            pixel_bytes = 1;
+            line_size = width*pixel_bytes;
+	    break;
         default:
             printf("TODO: Other bpp handling...\n");
             return -1;
@@ -124,7 +140,8 @@ int create_bmp_file(unsigned width, unsigned height, struct bmp_info * info, int
     data_size = raw_size +
                      sizeof(struct bmpfile_magic) +
                      sizeof(struct bmpfile_header) +
-                     sizeof(BITMAPINFOHEADER);
+                     sizeof(BITMAPINFOHEADER) +
+		     sizeof(COLTABLE);
     data = malloc(data_size);
 
     if(data == NULL)
@@ -137,6 +154,7 @@ int create_bmp_file(unsigned width, unsigned height, struct bmp_info * info, int
     magic = (struct bmpfile_magic *)&data[MAGIC_POS];
     header = (struct bmpfile_header *)&data[HEADER_POS];
     dib = (BITMAPINFOHEADER *)&data[DIB_POS];
+    coltable = (COLTABLE *)&data[COLTABLE_POS];
 
     //Filling
     magic->magic[0] = 'B';
@@ -156,8 +174,16 @@ int create_bmp_file(unsigned width, unsigned height, struct bmp_info * info, int
     dib->bmp_bytesz = raw_size;
     dib->hres = 0;
     dib->vres = 0;
-    dib->ncolors = 0;
+    dib->ncolors = 256;
     dib->nimpcolors = 0;
+
+    for (uint32_t col = 0; col < 256; col++)
+      {
+	coltable->rgba32[col].r = col;
+	coltable->rgba32[col].g = col;
+	coltable->rgba32[col].b = col;
+	coltable->rgba32[col].a = 0;
+      }
 
     // Blank it
     memset(data+raw_pos, 0xFF, raw_size);
