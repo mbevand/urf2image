@@ -220,6 +220,8 @@ void bmp_set_line(struct bmp_info * info, int line_n, uint8_t line[])
 // Data are in network endianness
 struct urf_file_header {
     char unirast[8];
+    // page_count is sometimes zero, in which case the number of pages can
+    // only be known by decoding the URF data and counting decoded pages
     uint32_t page_count;
 } __attribute__((__packed__));
 
@@ -372,6 +374,7 @@ int main(int argc, char **argv)
     struct urf_page_header page_header, page_header_orig;
     struct bmp_info bmp;
     char bmpfile[255];
+    ssize_t nread;
 
     if((fd = open(argv[1], O_RDONLY)) == -1) die("Unable to open unirast file");
 
@@ -388,11 +391,15 @@ int main(int argc, char **argv)
 
     if(strncmp(head.unirast, "UNIRAST", 7) != 0) die("Bad File Header");
 
-    iprintf("%s file, with %d page(s).\n", head.unirast, head.page_count);
-
-    for(page = 0 ; page < head.page_count ; ++page)
+    for(page = 0 ; ; ++page)
     {
-        if(read(fd, &page_header_orig, sizeof(page_header_orig)) == -1) die("Unable to read page header");
+        nread = read(fd, &page_header_orig, sizeof(page_header_orig));
+        if (nread == -1) die("Unable to read page header");
+        if (nread == 0)
+        {
+            iprintf("End of data, total %d pages\n", page);
+            break;
+        }
 
         //Transform
         page_header.bpp = page_header_orig.bpp;
